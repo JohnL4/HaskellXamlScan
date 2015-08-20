@@ -31,8 +31,10 @@ main = do
   parms <- getProgramParameters argv
   dumpProgramParameters parms
   filepaths <- getFilePaths parms
-  resources <- findResources parms filepaths
-  printCommonResources parms resources
+  putStr ("Found " ++ (show (length filepaths)) ++ " files.")
+  putStrLn (fst (foldl (\ (msg, i) fp -> ((msg ++ "\n    " ++ (show (i+1)) ++ ": " ++ (show fp)), i+1)) ("", 0) filepaths))
+  -- resources <- findResources parms filepaths
+  -- printCommonResources parms resources
   putStrLn "Done."
 
 dirp :: Maybe String -> OptFlag
@@ -86,6 +88,17 @@ getRecursiveContents topdir = do
       else return [path]
   return (concat paths)
 
+-- | Return true iff given OptFlag is a DirOpt
+isDirOpt :: OptFlag -> Bool
+isDirOpt (DirOpt _) = True
+isDirOpt _ = False
+
+-- | Returns dir name out of DirOpt OptFlag
+dirName :: OptFlag -> String
+dirName (DirOpt dir) = dir
+dirName _ = error "Unexpect arg"
+
+{-
 -- | Walk the given directory finding resources used by each file
 findResources :: ([OptFlag], [String]) -- ^ Option, non-option program parameters
               -> [FilePath]            -- ^ files to be scanned
@@ -120,20 +133,10 @@ resourcesUsed2 :: FilePath      -- ^ The filepath searched
 resourcesUsed2 filepath (_,_,_,subexprs) =
   map (\ subexpr -> (filepath, subexpr)) subexprs
   
-
--- | Return true iff given OptFlag is a DirOpt
-isDirOpt :: OptFlag -> Bool
-isDirOpt (DirOpt _) = True
-isDirOpt _ = False
-
--- | Returns dir name out of DirOpt OptFlag
-dirName :: OptFlag -> String
-dirName (DirOpt dir) = dir
-dirName _ = error "Unexpect arg"
-
 -- | Print those resources in the given map that are used in two or more files
 printCommonResources :: ([OptFlag], [String]) -> ResourceToUsageMap -> IO ()
 printCommonResources (optFlags, nonOptStrings) resourceToUsageMap = do
   putStrLn "Will print common resources."
   
   
+-}
