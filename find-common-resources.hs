@@ -13,12 +13,14 @@ import qualified Data.Map.Lazy as Map
 
 -- | Program option flag types
 data OptFlag = DirOpt String
-             deriving Show
+             | VerboseOpt
+             deriving (Show, Eq)
 
 -- | Program option descriptors
 options :: [OptDescr OptFlag]
 options =
-  [ Option ['d'] ["dir"] (OptArg dirp "DIRECTORY") "Directory in which to start walk"
+  [ Option ['d'] ["dir"]      (OptArg dirp "DIRECTORY")  "Directory in which to start walk",
+    Option ['v'] ["verbose"]  (NoArg VerboseOpt)            "Be verbose in output to stderr"
   ]
 
 -- | Map from resource to files where it is used.
@@ -31,11 +33,21 @@ main = do
   parms <- getProgramParameters argv
   dumpProgramParameters parms
   filepaths <- getFilePaths parms
-  putStr ("Found " ++ (show (length filepaths)) ++ " files.")
-  putStrLn (fst (foldl (\ (msg, i) fp -> ((msg ++ "\n    " ++ (show (i+1)) ++ ": " ++ (show fp)), i+1)) ("", 0) filepaths))
+  hPutStr stderr ("Found " ++ (show (length filepaths)) ++ " files.")
+  when (elem (VerboseOpt) (fst parms)) $ do
+    hPutStr stderr (fst (foldl (\ (msg, i) fp -> ((msg ++ "\n    " ++ (show (i+1)) ++ ": " ++ (show fp)), i+1))
+                         ("", 0) filepaths))
+  hPutStrLn stderr  ""
+  fileContentsList <- forM filepaths $ \fp -> do readFile fp
+  hPutStrLn stderr  ("fileContentsList has " ++ (show (length fileContentsList)) ++ " entries.")
+  let filesAndContents = zip filepaths fileContentsList
+      allResources = findResources parms filesAndContents
+    in when (elem VerboseOpt (fst parms)) $ do
+         hPutStrLn stderr ("Found " ++ ((\(ResourceToUsageMap m) -> (show (length m))) allResources) ++ " usages of resources.")
+      
   -- resources <- findResources parms filepaths
   -- printCommonResources parms resources
-  putStrLn "Done."
+  hPutStrLn stderr  "Done."
 
 dirp :: Maybe String -> OptFlag
 dirp = DirOpt . fromMaybe "."
@@ -98,18 +110,18 @@ dirName :: OptFlag -> String
 dirName (DirOpt dir) = dir
 dirName _ = error "Unexpect arg"
 
-{-
 -- | Walk the given directory finding resources used by each file
 findResources :: ([OptFlag], [String]) -- ^ Option, non-option program parameters
-              -> [FilePath]            -- ^ files to be scanned
-              -> IO ResourceToUsageMap
-findResources (optFlags, nonOptStrings) filepaths = do
-  return $ foldl (addUsageToMap) (ResourceToUsageMap Map.empty) (usagesInFilePaths filepaths)
+              -> [(FilePath, String)]  -- ^ files to be scanned, along with their (lazy) contents
+              -> ResourceToUsageMap
+findResources (optFlags, nonOptStrings) filepathsAndContents =
+  -- (ResourceToUsageMap Map.empty)
+  foldl (addUsageToMap) (ResourceToUsageMap Map.empty) (usagesInFileContents filepathsAndContents)
 
 -- | List of all usages in all given filepaths
-usagesInFilePaths :: [FilePath] -- ^ File to be scanned
-                  -> IO [(FilePath, String)] -- ^ List of usages in files
-usagesInFilePaths filepaths = do return (concat (mapM resourcesUsed filepaths))
+usagesInFileContents :: [(FilePath,String)] -- ^ Filename and contents to be scanned
+                     -> [(FilePath, String)] -- ^ List of usages in files
+usagesInFileContents filepathsAndContents = (concat (map resourcesUsed filepathsAndContents))
 
 -- | Add the given resource usage to the given map, returning the updated map
 addUsageToMap :: ResourceToUsageMap -- ^ map to be updated
@@ -119,13 +131,12 @@ addUsageToMap (ResourceToUsageMap inputMap) (filepath, usageOccurrence) =
   ResourceToUsageMap (Map.insertWith (++) filepath [usageOccurrence] inputMap)
 
 -- | Return a list of tuples: (filepath, resource)
-resourcesUsed :: FilePath -> IO [(FilePath, String)]
-resourcesUsed filepath = do
-  filecontents <- readFile filepath
-  return [("foo", "bar")] -- $ resourcesUsed2 filepath (filecontents =~ resourcesSectionRegex :: (String, String, String, [String]))
+resourcesUsed :: (FilePath, String) -> [(FilePath, String)]
+resourcesUsed (filepath, filecontents) = 
+  [("foo", "bar")] -- $ resourcesUsed2 filepath (filecontents =~ resourcesSectionRegex :: (String, String, String, [String]))
   where resourcesSectionRegex =
           "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
-
+{-
 -- | Transform subexpressions found in resources section to (filename,subexpression) pairs.
 resourcesUsed2 :: FilePath      -- ^ The filepath searched
                -> (String,String,String,[String]) -- ^ Results of regexp match
@@ -136,7 +147,7 @@ resourcesUsed2 filepath (_,_,_,subexprs) =
 -- | Print those resources in the given map that are used in two or more files
 printCommonResources :: ([OptFlag], [String]) -> ResourceToUsageMap -> IO ()
 printCommonResources (optFlags, nonOptStrings) resourceToUsageMap = do
-  putStrLn "Will print common resources."
+  hPutStrLn stderr  "Will print common resources."
   
   
 -}
