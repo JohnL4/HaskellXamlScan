@@ -34,8 +34,10 @@ main = do
   dumpProgramParameters parms
   filepaths <- getFilePaths parms
   hPutStr stderr ("Found " ++ (show (length filepaths)) ++ " files.")
+  -- TODO: write "verb" function
+  -- TODO: Find out how to format (pretty-print?) output more easily.
   when (elem (VerboseOpt) (fst parms)) $ do
-    hPutStr stderr (fst (foldl (\ (msg, i) fp -> ((msg ++ "\n    " ++ (show (i+1)) ++ ": " ++ (show fp)), i+1))
+    hPutStr stderr (fst (foldl (\ (msg, i) fp -> ((msg ++ "\n    " ++ (show (i+1)) ++ ": " ++ fp), i+1))
                          ("", 0) filepaths))
   hPutStrLn stderr  ""
   fileContentsList <- forM filepaths $ \fp -> do readFile fp
@@ -71,7 +73,7 @@ thingPerLine :: (Show t) => String -> [t] -> String
 thingPerLine indent things =
   foldl (\ str thing -> str ++ indent ++ (show thing) ++ "\n") "" things
 
-----------------------------------------------------------------
+-- ====================================================================================================
 
 -- | Return a list of file paths to be scanned
 getFilePaths :: ([OptFlag], [String]) -- ^ Program parameters
@@ -133,10 +135,11 @@ addUsageToMap (ResourceToUsageMap inputMap) (filepath, usageOccurrence) =
 -- | Return a list of tuples: (filepath, resource)
 resourcesUsed :: (FilePath, String) -> [(FilePath, String)]
 resourcesUsed (filepath, filecontents) = 
-  [("foo", "bar")] -- $ resourcesUsed2 filepath (filecontents =~ resourcesSectionRegex :: (String, String, String, [String]))
+  -- [("foo", "bar")]
+  resourcesUsed2 filepath (filecontents =~ resourcesSectionRegex :: (String, String, String, [String]))
   where resourcesSectionRegex =
           "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
-{-
+
 -- | Transform subexpressions found in resources section to (filename,subexpression) pairs.
 resourcesUsed2 :: FilePath      -- ^ The filepath searched
                -> (String,String,String,[String]) -- ^ Results of regexp match
@@ -148,6 +151,4 @@ resourcesUsed2 filepath (_,_,_,subexprs) =
 printCommonResources :: ([OptFlag], [String]) -> ResourceToUsageMap -> IO ()
 printCommonResources (optFlags, nonOptStrings) resourceToUsageMap = do
   hPutStrLn stderr  "Will print common resources."
-  
-  
--}
+
