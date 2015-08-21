@@ -1,3 +1,6 @@
-common
+{
+comon commmon common
+commmmon
+}
 aaa abc
 aaa def
