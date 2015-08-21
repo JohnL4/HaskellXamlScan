@@ -12,12 +12,21 @@ import Control.Monad
 import System.Directory
 import System.FilePath
 import Text.Regex.TDFA
+import Text.Regex.TDFA.String
+import Text.Printf
 
 import qualified Data.Map.Lazy as Map
 
+usageRE =
+  "<[^>]+>"
+  -- "comm*on"
+  
 resourcesSectionRegex =
   -- "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
-  "{[ \t\n\r]*([ \t\n\r]*(comm*on))+[ \t\n\r]*}"
+  compile blankCompOpt blankExecOpt "<UserControl.Resources>"
+  -- "<UserControl.Resources>"
+  -- "<UserControl.Resources>.*</UserControl.Resources>"
+  -- "{[ \t\n\r]*([ \t\n\r]*(comm*on))+[ \t\n\r]*}"
 
 -- | Program parameters
 data PgmParms = PgmParms ([OptFlag], -- ^ Option flags (possibly with values) passed to program
@@ -85,26 +94,32 @@ main :: IO ()
 main = do
   argv <- getArgs
   parms <- getProgramParameters argv
-  dumpProgramParameters parms
+  when (hasOpt parms VerboseOpt) $ do
+    dumpProgramParameters parms
+
+  when (hasOpt parms VerboseOpt) $ do
+    putStrLn ("Testing printf: " ++ (printf "%s" "hi"))
+    printf "%s\n" "hi, there"
+    printf "%d\n" (length "hi, there")
+
   filepaths <- getFilePaths parms
-  hPutStr stderr ("Found " ++ (show (length filepaths)) ++ " files.")
+  when (hasOpt parms VerboseOpt) $ do
+    hPutStrLn stderr ("Found " ++ (show (length filepaths)) ++ " files.")
   -- TODO: write "verb" function
   -- TODO: Find out how to format (pretty-print?) output more easily.
   when (hasOpt parms VerboseOpt) $ do
-    hPutStr stderr (fst (foldl (\ (msg, i) fp -> ((msg ++ "\n    " ++ (show (i+1)) ++ ": " ++ fp), i+1))
+    hPutStrLn stderr (fst (foldl (\ (msg, i) fp -> ((msg ++ "\n    " ++ (show (i+1)) ++ ": " ++ fp), i+1))
                          ("", 0) filepaths))
-  hPutStrLn stderr  ""
   fileContentsList <- forM filepaths $ \fp -> do readFile fp
-  hPutStrLn stderr  ("fileContentsList has " ++ (show (length fileContentsList)) ++ " entries.")
+  when (hasOpt parms VerboseOpt) $ do
+    hPutStrLn stderr  ("fileContentsList has " ++ (show (length fileContentsList)) ++ " entries.")
   let filesAndContents = zip filepaths fileContentsList
       allResources = findUsages parms filesAndContents
-    in when (hasOpt parms VerboseOpt) $ do
-         hPutStr stderr ("Found " ++ ((\(ResourceToUsageMap m) -> (show (length m))) allResources) ++ " usages of resources.")
-         hPutStr stderr (foldl (\s (f, rs) -> s ++ "\n    " ++ (show (f, rs))) "" (resourceEntries allResources))
-         hPutStrLn stderr ""
-      
-  -- resources <- findUsages parms filepaths
-  -- printCommonResources parms resources
+    in do (when (hasOpt parms VerboseOpt) $ do
+              hPutStr stderr ("Found " ++ ((\(ResourceToUsageMap m) -> (show (length m))) allResources) ++ " usages of resources.")
+              hPutStr stderr (foldl (\s (f, rs) -> s ++ "\n    " ++ (show (f, rs))) "" (resourceEntries allResources))
+              hPutStrLn stderr "")
+          printCommonResources parms allResources
   hPutStrLn stderr  "Done."
 
 dirp :: Maybe String -> OptFlag
@@ -208,24 +223,33 @@ addUsageToMap (ResourceToUsageMap inputMap) (filepath, usageOccurrence) =
 resourcesUsed :: (FilePath, String) -> [(FilePath, String)]
 resourcesUsed (filepath, filecontents) = 
   -- [("foo", "bar")]
-  resourcesUsed2 filepath (filecontents =~ resourcesSectionRegex :: (String, String, String, [String]))
+  if (filecontents =~ resourcesSectionRegex)
+  then resourcesUsed2 filepath (filecontents =~ resourcesSectionRegex :: (String, String, String))
+  else []
 
 -- | Transform subexpressions found in resources section to (filename,subexpression) pairs.
 resourcesUsed2 :: FilePath      -- ^ The filepath searched
-               -> (String,String,String,[String]) -- ^ Results of regexp match
+               -> (String,String,String) -- ^ Results of regexp match
                -> [(FilePath,String)]
-resourcesUsed2 filepath (_, foundSubstring, _, subexprs) =
+resourcesUsed2 filepath (_, foundSubstring, _) =
+  trace ("\n>>>>>>>> Possible hit for file " ++ filepath ++ ":\n" ++ foundSubstring)
   foldl (\usages usage -> usage : usages) []
   (map (\ss -> (filepath, ss))
-   (chop (\s -> matchRest (s =~ "[ \t\n\r]*(comm*on)" :: (String, String, String, [String]))) foundSubstring))
-  where matchRest (_,match,rest, subs) =
-          trace ("chopping, (match, rest) == " ++ (show (subs !! 0, rest)))
-          (subs !! 0, if (rest =~ "comm*on")
+   (chop (\s -> matchRest (s =~ ("[ \t\n\r]*(" ++ usageRE ++ ")") :: (String, String, String, [String]))) foundSubstring))
+  where matchRest (_, _, rest, subs) =
+          (subs !! 0, if (rest =~ usageRE)
                       then rest
                       else "")
 
 -- | Print those resources in the given map that are used in two or more files
-printCommonResources :: ([OptFlag], [String]) -> ResourceToUsageMap -> IO ()
-printCommonResources (optFlags, nonOptStrings) resourceToUsageMap = do
-  hPutStrLn stderr  "Will print common resources."
-
+printCommonResources :: PgmParms -> ResourceToUsageMap -> IO ()
+printCommonResources parms (ResourceToUsageMap map) = do
+  when (hasOpt parms VerboseOpt) $ do
+    hPutStrLn stderr "Will print common resources."
+    hPutStrLn stderr ("Map has " ++ (show (Map.size map)) ++ " entries.")
+    hPutStrLn stderr $ show (length $ filter isCommon (Map.assocs map)) ++ " common usages"
+  putStr $ foldl (\string (usage, files) -> string ++ "    " ++ usage ++ "\t" ++ show files ++ "\n") ""
+    (filter isCommon (Map.assocs map))
+  when ((length $ filter isCommon (Map.assocs map)) == 0) $ do
+    putStrLn ""
+  where isCommon (u, fs) = length fs > 1
