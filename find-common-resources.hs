@@ -17,6 +17,7 @@ import Text.Printf
 
 import qualified Data.Map.Lazy as Map
 
+-- See http://stackoverflow.com/q/32149354/370611
 toRegex = makeRegexOpts defaultCompOpt{multiline=False} defaultExecOpt
 
 usageRE =
