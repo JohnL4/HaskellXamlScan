@@ -17,15 +17,17 @@ import Text.Printf
 
 import qualified Data.Map.Lazy as Map
 
+toRegex = makeRegexOpts defaultCompOpt{multiline=False} defaultExecOpt
+
 usageRE =
   "<[^>]+>"
   -- "comm*on"
   
 resourcesSectionRegex =
   -- "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
-  compile blankCompOpt blankExecOpt "<UserControl.Resources>"
+  -- compile blankCompOpt blankExecOpt "<UserControl.Resources>"
   -- "<UserControl.Resources>"
-  -- "<UserControl.Resources>.*</UserControl.Resources>"
+  "<UserControl.Resources>.*</UserControl.Resources>"
   -- "{[ \t\n\r]*([ \t\n\r]*(comm*on))+[ \t\n\r]*}"
 
 -- | Program parameters
@@ -223,8 +225,8 @@ addUsageToMap (ResourceToUsageMap inputMap) (filepath, usageOccurrence) =
 resourcesUsed :: (FilePath, String) -> [(FilePath, String)]
 resourcesUsed (filepath, filecontents) = 
   -- [("foo", "bar")]
-  if (filecontents =~ resourcesSectionRegex)
-  then resourcesUsed2 filepath (filecontents =~ resourcesSectionRegex :: (String, String, String))
+  if (match (toRegex resourcesSectionRegex) filecontents )
+  then resourcesUsed2 filepath (match (toRegex resourcesSectionRegex) filecontents :: (String, String, String))
   else []
 
 -- | Transform subexpressions found in resources section to (filename,subexpression) pairs.
@@ -232,12 +234,13 @@ resourcesUsed2 :: FilePath      -- ^ The filepath searched
                -> (String,String,String) -- ^ Results of regexp match
                -> [(FilePath,String)]
 resourcesUsed2 filepath (_, foundSubstring, _) =
-  trace ("\n>>>>>>>> Possible hit for file " ++ filepath ++ ":\n" ++ foundSubstring)
+  -- trace ("\n>>>>>>>> Possible hit for file " ++ filepath ++ ":\n" ++ foundSubstring)
   foldl (\usages usage -> usage : usages) []
   (map (\ss -> (filepath, ss))
-   (chop (\s -> matchRest (s =~ ("[ \t\n\r]*(" ++ usageRE ++ ")") :: (String, String, String, [String]))) foundSubstring))
+   (chop (\s -> matchRest (match (toRegex ("[ \t\n\r]*(" ++ usageRE ++ ")")) s :: (String, String, String, [String])))
+    foundSubstring))
   where matchRest (_, _, rest, subs) =
-          (subs !! 0, if (rest =~ usageRE)
+          (subs !! 0, if (match (toRegex usageRE) rest)
                       then rest
                       else "")
 
@@ -252,4 +255,7 @@ printCommonResources parms (ResourceToUsageMap map) = do
     (filter isCommon (Map.assocs map))
   when ((length $ filter isCommon (Map.assocs map)) == 0) $ do
     putStrLn ""
+  when (hasOpt parms VerboseOpt) $ do
+    hPrintf stderr "%d total usages\n" (length (Map.assocs map))
+    hPrintf stderr "%d common usages\n" (length $ filter isCommon (Map.assocs map))
   where isCommon (u, fs) = length fs > 1
