@@ -248,10 +248,10 @@ resourcesUsed2 filepath (_, foundSubstring, _) =
   -- trace ("\n>>>>>>>> Possible hit for file " ++ filepath ++ ":\n" ++ foundSubstring)
   foldl (\usages usage -> usage : usages) []
   (map (\ss -> (filepath, ss))
-   --(filter (\ss -> not (match (toRegex filterRegex) ss))
+   (filter (\ss -> not (match (toRegex filterRegex) ss))
     (chop (\s -> matchRest (match (toRegex ("[ \t\n\r]*(" ++ usageRE ++ ")")) s :: (String, String, String, [String])))
      foundSubstring)
-   --)
+   )
   )
   where matchRest (_, _, rest, subs) =
           (subs !! 0, if (match (toRegex usageRE) rest)
