@@ -20,15 +20,22 @@ import qualified Data.Map.Lazy as Map
 -- See http://stackoverflow.com/q/32149354/370611
 toRegex = makeRegexOpts defaultCompOpt{multiline=False} defaultExecOpt
 
+-- | A single usage of something within a Resources section.
 usageRE =
-  "<[^>]+>"
+  -- "<([^ \t\n\r>]+)[^>]*>"
+  -- "<[^>]+>"
+  "<[^!][^>]*>"
   -- "comm*on"
-  
+
+-- | Something that looks like a usage (matches usageRE) but isn't
+filterRegex = "(^<!--)"       -- Comments
+              ++ "|(^</[^>]*>)"       -- End tags
+
 resourcesSectionRegex =
   -- "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
   -- compile blankCompOpt blankExecOpt "<UserControl.Resources>"
   -- "<UserControl.Resources>"
-  "<UserControl.Resources>.*</UserControl.Resources>"
+  "<(UserControl|Window|Page).Resources>.*</(UserControl|Window|Page).Resources>"
   -- "{[ \t\n\r]*([ \t\n\r]*(comm*on))+[ \t\n\r]*}"
 
 -- | Program parameters
@@ -64,6 +71,9 @@ optValue (PgmParms (flags, _)) flag = lookup flag flags
 -}
 
 -- | Program option flag types
+-- <p>Sample usage:
+-- <p><code>find-common-resources -p bin:binRel -f xaml`$ -d . -v </code>
+-- <p>(Backtic (`) is PowerShell's escape character.)
 data OptFlag = DirOpt String    -- ^ Which directory to search (could also specify w/out argument)
              | VerboseOpt       -- ^ Dump verbose logging to stderr
              | FilenameOpt String -- ^ Restrict file select to those matching the given regex
@@ -81,7 +91,7 @@ options :: [OptDescr OptFlag]
 options =
   [ Option ['d'] ["dir"]      (ReqArg DirOpt "DIRECTORY")   "Directory in which to start walk",
     Option ['v'] ["verbose"]  (NoArg VerboseOpt)            "Be verbose in output to stderr",
-    Option ['n'] ["name"]     (ReqArg FilenameOpt "REGEX")  "Select files whose names match the given regex. Use colons to delimit multiple regexes.",
+    Option ['f'] ["filename"] (ReqArg FilenameOpt "REGEX")  "Select files whose names match the given regex. Use colons to delimit multiple regexes.",
     Option ['p'] ["prune"]    (ReqArg PruneOpt "REGEX")     "Do not traverse into directories whose names match the given regex. Use colons to delimit multiple regexes."
   ]
 
@@ -134,7 +144,7 @@ getProgramParameters argv =
   case getOpt Permute options argv of
       (o, n, []) -> return $ PgmParms (o,n)
       (_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
-  where header = "Usage: " ++  "getProgName" ++ " [-d|--dir DIRECTORY]"
+  where header = "Usage: "
         
 -- | Dump program parameters to stderr
 dumpProgramParameters :: PgmParms -> IO ()
@@ -238,8 +248,11 @@ resourcesUsed2 filepath (_, foundSubstring, _) =
   -- trace ("\n>>>>>>>> Possible hit for file " ++ filepath ++ ":\n" ++ foundSubstring)
   foldl (\usages usage -> usage : usages) []
   (map (\ss -> (filepath, ss))
-   (chop (\s -> matchRest (match (toRegex ("[ \t\n\r]*(" ++ usageRE ++ ")")) s :: (String, String, String, [String])))
-    foundSubstring))
+   --(filter (\ss -> not (match (toRegex filterRegex) ss))
+    (chop (\s -> matchRest (match (toRegex ("[ \t\n\r]*(" ++ usageRE ++ ")")) s :: (String, String, String, [String])))
+     foundSubstring)
+   --)
+  )
   where matchRest (_, _, rest, subs) =
           (subs !! 0, if (match (toRegex usageRE) rest)
                       then rest
