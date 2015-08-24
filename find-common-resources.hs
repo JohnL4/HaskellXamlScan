@@ -22,14 +22,14 @@ toRegex = makeRegexOpts defaultCompOpt{multiline=False} defaultExecOpt
 
 -- | A single usage of something within a Resources section.
 usageRE =
-  -- "<([^ \t\n\r>]+)[^>]*>"
+  "<[ \t\n\r]*([^ \t\n\r>]+)[^>]*>"
   -- "<[^>]+>"
-  "<[^!][^>]*>"
+  -- "<[^>]*>"
   -- "comm*on"
 
 -- | Something that looks like a usage (matches usageRE) but isn't
-filterRegex = "(^<!--)"       -- Comments
-              ++ "|(^</[^>]*>)"       -- End tags
+filterRegex = "(^!--)"       -- Comments
+              ++ "|(^/[^>]*)"       -- End tags
 
 resourcesSectionRegex =
   -- "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
@@ -254,7 +254,8 @@ resourcesUsed2 filepath (_, foundSubstring, _) =
    )
   )
   where matchRest (_, _, rest, subs) =
-          (subs !! 0, if (match (toRegex usageRE) rest)
+          -- usageRE is assumed to contain a single subexpressoin
+          (subs !! 1, if (match (toRegex usageRE) rest)
                       then rest
                       else "")
 
