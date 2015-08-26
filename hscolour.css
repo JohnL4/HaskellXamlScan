@@ -1,0 +1,36 @@
+.hs-keyglyph, .hs-layout {color: red;}
+.hs-keyword {color: blue;}
+.hs-comment, .hs-comment a {color: green;}
+.hs-str, .hs-chr {color: teal;}
+.hs-keyword, .hs-conid, .hs-varid, .hs-conop, .hs-varop, .hs-num, .hs-cpp, .hs-sel, .hs-definition {}
+
+body { margin-left: 7%; }
+
+/* h1 is doc title */
+
+h1 { margin-left: -6%; text-align: center; text-decoration: underline; }
+
+h2, h3 { margin-left: -6%; }
+
+h4 { margin-left: -3%; }
+
+h5, h6 { font-size: 1em; }
+
+pre { border: 1px solid silver; margin-left: 3em; margin-right: 1em; padding: 0.8em; }
+
+/* HTC One M8 */
+@media screen
+      and (max-device-width: 640px)
+      and (min-device-width: 361px)
+      and (orientation: portrait) {
+
+   pre { font-size: 2em; margin-left: 1.5em; margin-right: 0.5em; border: 2px solid green; }
+}
+
+/* Nexus 7 */
+@media screen
+      and (max-device-width: 360px)
+      and (orientation: portrait) {
+
+   pre { font-size: 2em; margin-left: 1.5em; margin-right: 0.5em; border: 2px solid maroon; }
+}
