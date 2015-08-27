@@ -72,7 +72,7 @@ optValue (PgmParms (flags, _)) flag = lookup flag flags
 
 -- | Program option flag types
 -- <p>Sample usage:
--- <p><code>find-common-resources -p bin:binRel -f xaml`$ -d . -v </code>
+-- <p><code>find-common-resources -p bin:binRel -f xaml`$ -d . -v </code></p>
 -- <p>(Backtic (`) is PowerShell's escape character.)
 data OptFlag = DirOpt String    -- ^ Which directory to search (could also specify w/out argument)
              | VerboseOpt       -- ^ Dump verbose logging to stderr

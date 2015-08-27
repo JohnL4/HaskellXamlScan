@@ -1,7 +1,11 @@
-.SUFFIXES: .lhs .mkd .html .tex .pdf
+.SUFFIXES: .hs .lhs .mkd .html .tex .pdf
 
 PANDOC := ~/.cabal/bin/pandoc --no-wrap -sS
 HSCOLOUR := ~/.cabal/bin/HsColour -lit
+HS2LHS := ~/Development/Haskell/Literate/hs2lhs
+
+.hs.lhs:
+	$(HS2LHS) $< > $@
 
 .lhs.mkd:
 	cat $< | $(HSCOLOUR) -css > $@
