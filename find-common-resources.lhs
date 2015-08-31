@@ -1,4 +1,18 @@
-Find common resources in XAML files.
+find-common-resources
+=====================
+
+Overview
+--------
+
+This is a program that finds common resources in XAML files.  It works by scanning all files matching a certain filename
+pattern (given on the command line) and then, within those files, finds the resource section (which starts and 
+ends with a "resource" keyword), and then breaks that section down into individual resources.  Having done all that,
+the program builds a map from resource to the files using that resource, and, finally, prints out all map entries
+for which the number of files using the corresponding resource is greater than one.
+
+Apologies for the way this code is structured; it's neophyte code.
+
+First, we have to do the imports:
 
 > import Debug.Trace
 > import System.Environment
@@ -17,11 +31,24 @@ Find common resources in XAML files.
 
 > import qualified Data.Map.Lazy as Map
 
-See http://stackoverflow.com/q/32149354/370611
+Regular Expressions
+-------------------
 
-> toRegex = makeRegexOpts defaultCompOpt{multiline=False} defaultExecOpt
+The following is how we recognize the "resources" section:
 
-A single usage of something within a Resources section.
+> resourcesSectionRegex =
+>   "<(UserControl|Window|Page).Resources>.*</(UserControl|Window|Page).Resources>"
+
+...along with some other expressions I tried as I stumbled around:
+
+>   -- "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
+>   -- compile blankCompOpt blankExecOpt "<UserControl.Resources>"
+>   -- "<UserControl.Resources>"
+>   -- "{[ \t\n\r]*([ \t\n\r]*(comm*on))+[ \t\n\r]*}"
+
+Within the resources section, we need to recognize a single resource usage.  The following regex is how we do that.
+Basically, it's everything inside a single angle-bracketed string.  Note that this won't work well for structured
+resources like styles and triggers, but it'll find brushes and converters.
 
 > usageRE =
 >   "<[ \t\n\r]*([^ \t\n\r>]+)[^>]*>"
@@ -29,19 +56,24 @@ A single usage of something within a Resources section.
 >   -- "<[^>]*>"
 >   -- "comm*on"
 
-Something that looks like a usage (matches usageRE) but isn't
+And, finally, we need to filter out some junk that looks like a resource usage but isn't.  Don't forget to group
+subclauses in parentheses and start them all with a pipe (`|`).
 
 > filterRegex = "(^!--)"       -- Comments
 >               ++ "|(^/[^>]*)"       -- End tags
 
-> resourcesSectionRegex =
->   -- "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
->   -- compile blankCompOpt blankExecOpt "<UserControl.Resources>"
->   -- "<UserControl.Resources>"
->   "<(UserControl|Window|Page).Resources>.*</(UserControl|Window|Page).Resources>"
->   -- "{[ \t\n\r]*([ \t\n\r]*(comm*on))+[ \t\n\r]*}"
+The resources I consult (*Learn You a Haskell for Great Good!* and *Real World Haskell*) don't go into a lot of depth on
+compiling regular expressions.  I had to pose a question to StackOverflow, for which I got a quick, helpful answer (see
+[http://stackoverflow.com/q/32149354/370611](http://stackoverflow.com/q/32149354/370611)).
 
-Program parameters
+So, this `toRegex` function is how we compile a string into a regex that will match multiple lines.
+
+> toRegex = makeRegexOpts defaultCompOpt{multiline=False} defaultExecOpt
+
+Program Command-Line Parameters
+-------------------------------
+
+Now we define command-line program parameters.
 
 > data PgmParms = PgmParms ([OptFlag], -- ^ Option flags (possibly with values) passed to program
 >                           [String])  -- ^ Non-option arguments passed to program
