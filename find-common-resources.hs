@@ -1,4 +1,17 @@
 -- Find common resources in XAML files.
+-- 
+-- <p>Sample usage:
+-- <p><code>find-common-resources -p bin:binRel -f xaml`$ -d . -v </code></p>
+-- <p>(Backtic (`) is PowerShell's escape character.)
+
+-- This is a program that finds common resources in XAML files.  It works by scanning all files
+-- matching a certain filename pattern (given on the command line) and then, within those files,
+-- finds the resource section (which starts and ends with a "resource" keyword), and then breaks
+-- that section down into individual resources.  Having done all that, the program builds a map from
+-- resource to the files using that resource, and, finally, prints out all map entries for which the
+-- number of files using the corresponding resource is greater than one.
+-- 
+-- Apologies for the way this code is structured; it's neophyte code.
 
 import Debug.Trace
 import System.Environment
@@ -17,26 +30,40 @@ import Text.Printf
 
 import qualified Data.Map.Lazy as Map
 
--- See http://stackoverflow.com/q/32149354/370611
-toRegex = makeRegexOpts defaultCompOpt{multiline=False} defaultExecOpt
+-- | How we recognize the "resources" section
+resourcesSectionRegex =
+  "<(UserControl|Window|Page).Resources>.*</(UserControl|Window|Page).Resources>"
 
--- | A single usage of something within a Resources section.
+-- ...along with some other expressions I tried as I stumbled around:
+
+  -- "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
+  -- compile blankCompOpt blankExecOpt "<UserControl.Resources>"
+  -- "<UserControl.Resources>"
+  -- "{[ \t\n\r]*([ \t\n\r]*(comm*on))+[ \t\n\r]*}"
+
+-- | A single usage of something within a Resources section.  Within the resources section, we need
+-- | to recognize a single resource usage.  The following regex is how we do that.  Basically, it's
+-- | everything inside a single angle-bracketed string.  Note that this won't work well for
+-- | structured resources like styles and triggers, but it'll find brushes and converters.
 usageRE =
   "<[ \t\n\r]*([^ \t\n\r>]+)[^>]*>"
   -- "<[^>]+>"
   -- "<[^>]*>"
   -- "comm*on"
 
--- | Something that looks like a usage (matches usageRE) but isn't
+-- | Something that looks like a usage (matches usageRE) but isn't. Don't forget to group subclauses
+-- | in parentheses and start them all with a pipe (`|`).
 filterRegex = "(^!--)"       -- Comments
               ++ "|(^/[^>]*)"       -- End tags
 
-resourcesSectionRegex =
-  -- "<[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>.*</[ \t\n\r]*(Window|UserControl)\\.Resources[ \t\n\r]*>"
-  -- compile blankCompOpt blankExecOpt "<UserControl.Resources>"
-  -- "<UserControl.Resources>"
-  "<(UserControl|Window|Page).Resources>.*</(UserControl|Window|Page).Resources>"
-  -- "{[ \t\n\r]*([ \t\n\r]*(comm*on))+[ \t\n\r]*}"
+-- | See http://stackoverflow.com/q/32149354/370611.  The resources I consult (_Learn You a Haskell
+-- | for Great Good!_ and _Real World Haskell_) don't go into a lot of depth on compiling regular
+-- | expressions.  I had to pose a question to StackOverflow, for which I got a quick, helpful
+-- | answer.
+-- | 
+-- | So, this `toRegex` function is how we compile a string into a regex that will match
+-- | multiple lines.
+toRegex = makeRegexOpts defaultCompOpt{multiline=False} defaultExecOpt
 
 -- | Program parameters
 data PgmParms = PgmParms ([OptFlag], -- ^ Option flags (possibly with values) passed to program
@@ -71,9 +98,6 @@ optValue (PgmParms (flags, _)) flag = lookup flag flags
 -}
 
 -- | Program option flag types
--- <p>Sample usage:
--- <p><code>find-common-resources -p bin:binRel -f xaml`$ -d . -v </code></p>
--- <p>(Backtic (`) is PowerShell's escape character.)
 data OptFlag = DirOpt String    -- ^ Which directory to search (could also specify w/out argument)
              | VerboseOpt       -- ^ Dump verbose logging to stderr
              | FilenameOpt String -- ^ Restrict file select to those matching the given regex
